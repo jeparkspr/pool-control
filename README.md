@@ -17,11 +17,11 @@ Control exsiting equipment both locally at the junction box and remotely via Hom
 - \(2\) Pentair [IntelliBrite Color LED Pool Lights](https://www.pentair.com/en-us/pool-spa/products/lighting/intellibrite-5g-color-led-pool-lights.html) (24VAC)
 
 ## Materials
-1. \(1\) - Waveshare 8CH Relay Board \([ESP32-S3-ETH-8DI-8RO-C](https://www.waveshare.com/wiki/ESP32-S3-ETH-8DI-8RO-C)\).
-2. \(10\) - 12mm Metal Waterproof Switch Momentary Push MINI Button Switch \(Similar item: [Momentary Switch](https://www.ebay.com/itm/265398183120)\).
-3. \(1\) - 30A/220V Power Relay with 110VAC Coil \(Similar item: [Baomain High Power Relay](https://www.ebay.com/itm/286505847153)\).
-4. \(1\) - Qilipsu Junction Box with Mounting Plate \([QL-251510AG](https://www.qilipsu.com/product-204.html)\).  Note: This particular junction box is plastic, make sure you are comfortable with using a plastic enclosure as other options in metal or fiberglass exist.
-5. Miscelaneous 12AWG cable, Sealtite conduit, 24AWG solid core wire, etc.
+- \(1\) - Waveshare 8CH Relay Board \([ESP32-S3-ETH-8DI-8RO-C](https://www.waveshare.com/wiki/ESP32-S3-ETH-8DI-8RO-C)\).
+- \(7\) - 12mm Metal Waterproof Switch Momentary Push MINI Button Switch \(Similar item: [Momentary Switch](https://www.ebay.com/itm/265398183120)\).
+- \(1\) - 30A/220V Power Relay with 110VAC Coil \(Similar item: [Baomain High Power Relay](https://www.ebay.com/itm/286505847153)\).
+- \(1\) - Qilipsu Junction Box with Mounting Plate \([QL-251510AG](https://www.qilipsu.com/product-204.html)\).  Note: This particular junction box is plastic, make sure you are comfortable with using a plastic enclosure as other options in metal or fiberglass exist.
+- Miscelaneous 12AWG cable, Sealtite conduit, 24AWG solid core wire, etc.
 
 ## Version Info
 The final product was developed with:
