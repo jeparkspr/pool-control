@@ -1,5 +1,5 @@
 # Pool Control
-Project using ESPHome on a Waveshare 8CH Relay to Control a Hayward TriStar Filter Pump, a Spa Jets pump, and Pentair Pool Lights for integration with Home Assistant.
+Project using ESPHome on a Waveshare 8CH Relay to Control a Hayward TriStar Filter Pump, a Pentair Spa Jets pump, and 2 Pentair Pool Lights for both local control and integration with Home Assistant.
 
 ## Goals
 Control exsiting equipment both locally at the junction box and remotely via Home Assistant.
