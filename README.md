@@ -30,9 +30,32 @@ The final product was developed with:
 
 ## Notes
 ### Hayward TriStar Variable Speed Pump
-For do-it-yourself'ers, Hayward does not seem willing to share information about their implementation of MODBUS.  Some people have tried to sniff MODBUS traffic for these pumps \(i.e. [Desert Homes](http://www.desert-home.com/2014/07/controlling-hayward-ecostar-pump.html)\) and have figured out a bunch, but that's not a project I'm willing to take on at the moment. Consequently, I'm leveraging the Remote Relay Control which simply put, uses 3 on/off \(binary\) inputs to create 8 possible selections for a speed \(INP1, INP2, INP3\).  The 8 speeds come from programming each of the 8 timers in the pump.  INP4 is used to turn the pump off/on... but note that it is reversed so you'll want to make sure to use the normally closed \(NC\) side of the relay for that one so the pump is off when the Waveshare device is without power.
+For do-it-yourself'ers, Hayward does not seem willing to share information about their implementation of MODBUS.  Some people have tried to sniff MODBUS traffic for these pumps \(i.e. [Desert Home](http://www.desert-home.com/2014/07/controlling-hayward-ecostar-pump.html)\) and have figured out a bunch, but that's not a project I'm willing to take on at the moment. Consequently, I'm leveraging the Remote Relay Control feature which, simply put, uses 3 binary inputs to create 8 possible selections for a speed \(INP1, INP2, INP3\).  The 8 speeds come from programming each of the 8 timers in the pump.  INP4 is used to turn the pump off/on... but note that it is reversed so you'll want to make sure to use the normally closed \(NC\) side of the relay for that one so the pump is off when the Waveshare device is without power.
 
-Since I want to run most often at the highest speed configured \(I really only run my filter pump for 1 hour a day\) and I would want that to happen when the relays for INP1,2,3 are resting rather then holding them on for an hour each day, I reversed the order of the speeds with Timer-1 being the fastest speed and Timer-8 being the slowest.  Side-note, it makse no differenct if the timer is enabled or disabled when the unit is in Remote Relay Mode... either way, the timers will not run on their own and you will need to handle that via Home Assistant.
+Since I want to run most often at the highest speed configured \(I really only run my filter pump for 1 hour a day\) and I would want that to happen when the relays for INP1, 2, and 3 are resting rather then holding them on for an hour each day, I reversed the order of the speeds with Timer-1 being the fastest speed and Timer-8 being the slowest.  
+
+Side-note, it makse no differenct if the timer is enabled or disabled when the unit is in Remote Relay Mode... either way, the timers will not run on their own and you will need to handle that via Home Assistant.  Also note, once you are in Remote Relay Control mode, you'll need to turn on the pump to be able to change the timers.
+
+### Pentair Intellibright 5G Color LED Pool Lights
+Honestly, I have been very, very happy with these lights for the last 10 years or so.  They have a number of modes and colors that you can set by first turning the light on, then cycling the power on them for any of 1-14 times.  I have always wanted to have automation at the pool \(i.e. not dependent on a smarthome product\) that could handle the setting of each of those modes.  Below are the modes and number of times to cycle each one... as well as a couple name changes I took the liberty of making.
+
+| Cycle Count | Original Name | Name in Code | Description |
+| ----------- | ------------- | ------------ | ----------- |
+| 1 | SAm Mode| SAm | Cycles through white, magenta, blue and green colors (emulates the Pentair SAm® color changing light). |
+| 2 | Party Mode | Party | Rapid color changing building energy and excitement. |
+| 3 | Romance Mode | Romance |  Slow color transitions creating a mesmerizing and calming effect.|
+| 4 | Caribbean Mode | Caribbean | Transitions between a variety of blues and greens. |
+| 5 | American Mode | Red White & Blue | Patriotic red, white and blue transition. |
+| 6 | California Sunset Mode | California Sunset | Dramatic transitions of orange, red and magenta tones. |
+| 7 | Royal Mode | Royal | Richer, deeper color tones. |
+| 8 | Blue | BLue | Fixed color. |
+| 9 | Green | Green | Fixed color. |
+| 10 | Red | Red | Fixed color. |
+| 11 | White | White | Fixed color. |
+| 12 | Magenta | Magenta | Fixed color. |
+| 13 | Hold | Capture |  Save the current color effect during a color light show. |
+| 14 | Recall | Recall Last | Activate the last saved color effect. |
+
 
 ## Wiring Diagram
 ![Wiring Diagram](https://github.com/jeparkspr/pool-control/blob/main/wiring-diagram.jpg)
