@@ -29,4 +29,4 @@ The final product was developed with:
 - Home Assistant (HA) 2025.7.1.
 
 ##Wiring Diagram
-![Wiring Diagram](https://github.com/jeparkspr/pool-control/wiring-diagram.jpg)
+![Wiring Diagram](https://github.com/jeparkspr/pool-control/blob/main/wiring-diagram.jpg)
