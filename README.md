@@ -1,5 +1,5 @@
 # Pool Control
-Project using ESPHome on a Waveshare 8CH Relay to Control a Hayward TriStar Filter Pump, a Pentair Spa Jets pump, and 2 Pentair Pool Lights for both local control and integration with Home Assistant.
+Project using ESPHome on a Waveshare 8CH Relay to control a Hayward TriStar Filter Pump, a Pentair Spa Jets pump, and 2 Pentair Intellibright Pool Lights for both local control and integration with Home Assistant.   
 
 ## Goals
 Control exsiting equipment both locally at the junction box and remotely via Home Assistant.
@@ -30,7 +30,7 @@ The final product was developed with:
 
 ## Notes
 ### The YAML Code
-This is litteraly my first significan dive into ESPHome and YAML.  The MUST be many ways to improve the code and remove bloat \(i.e. passing parameters to scripts... * sigh... *\).  Any helpful feedback for improving the code is appreciated and welcomed; any rude feedback will simply be deleted.
+This is litteraly my first significan dive into ESPHome and YAML.  The MUST be many ways to improve the code and remove bloat \(i.e. passing parameters to scripts... * sigh... *\).  Any helpful feedback for improving the code is appreciated and welcomed; any rude feedback will simply be deleted.  The code can also be disected to use for any 1 of the 3 types of equipment as well... it's always easier to delete code than write it. 
 
 ### Hayward TriStar Variable Speed Pump
 For do-it-yourself'ers, Hayward does not seem willing to share information about their implementation of MODBUS.  Some people have tried to sniff MODBUS traffic for these pumps \(i.e. [Desert Home](http://www.desert-home.com/2014/07/controlling-hayward-ecostar-pump.html)\) and have figured out a bunch, but that's not a project I'm willing to take on at the moment. 
