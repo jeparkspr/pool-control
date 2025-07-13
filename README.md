@@ -32,4 +32,4 @@ The final product was developed with:
 ![Wiring Diagram](https://github.com/jeparkspr/pool-control/blob/main/wiring-diagram.jpg)
 
 ## Finished Product
-
+![Finished Product](https://github.com/jeparkspr/pool-control/blob/main/finished-product.jpg)
