@@ -27,3 +27,6 @@ Control exsiting equipment both locally at the junction box and remotely via Hom
 The final product was developed with:
 - ESPHome 2025.6.3
 - Home Assistant (HA) 2025.7.1.
+
+##Wiring Diagram
+![Wiring Diagram](https://github.com/jeparkspr/pool-control/wiring-diagram.jpg)
