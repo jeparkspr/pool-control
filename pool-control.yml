@@ -56,15 +56,15 @@ ota:
   - platform: esphome
 
 wifi:
-  ssid: "A Long Time Ago..."
-  password: "5188860A68"
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
   ap:
     ap_timeout: "0s"
     #ssid: "Waveshare 8ch"
-    #password: "88888888"
+    #password: "8channel"
   manual_ip:
-    static_ip: 10.0.0.190
-    gateway: 10.0.0.1
+    static_ip: 192.168.0.2
+    gateway: 192.168.0.1
     subnet: 255.255.255.0
     
 captive_portal:
