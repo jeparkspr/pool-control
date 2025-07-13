@@ -84,4 +84,5 @@ I am super happy with the results of this project.  The unit is extremely respon
 ![Wiring Diagram](https://github.com/jeparkspr/pool-control/blob/main/wiring-diagram.jpg)
 
 ## Finished Product
-![Finished Product](https://github.com/jeparkspr/pool-control/blob/main/finished-product.jpg)
+![Finished Product](https://github.com/jeparkspr/pool-control/blob/main/finished-product-1.jpg)
+![Finished Product](https://github.com/jeparkspr/pool-control/blob/main/finished-product-2.jpg)
