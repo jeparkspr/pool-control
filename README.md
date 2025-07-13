@@ -39,7 +39,7 @@ Consequently, I'm leveraging the Remote Relay Control feature which, simply put,
 
 Since I want to run most often at the highest speed configured \(I really only run my filter pump for 1 hour a day\) and I would want that to happen when the relays for INP1, 2, and 3 are resting rather then holding them on for an hour each day, I reversed the order of the speeds with Timer-1 being the fastest speed and Timer-8 being the slowest.  
 
-After setting each of the Timers for their speeds, I started the pump, allowed it to settle and read the wattage directly from the pump.  It's hard coded and one of the GREAT reasons that using MODBUS would have been better and I probably could have read that wattage on the fly rather than depend on something hard coded.  Noththeless, this allows me to create a measurement sensor that I can the use by and energy sensor to tally my usage in HA.
+After setting each of the Timers for their speeds, I started the pump, allowed it to settle and read the wattage directly from the pump.  It's hard coded and one of the GREAT reasons that using MODBUS would have been better as I probably could have read that wattage on the fly rather than depend on something hard coded.  Noththeless, this allows me to create a measurement sensor that I can in-turn use by and energy sensor to tally my power consumption in HA and add it to the energy dashboard.
 
 | Input  |  T1  |  T2  |  T3  |  T4  |  T5  |  T6  |  T7  |  T8  |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
@@ -72,13 +72,13 @@ Honestly, I have been very, very happy with these lights for the last 10 years o
 | 13 | Hold | Capture |  Save the current color effect during a color light show. |
 | 14 | Recall | Recall Last | Activate the last saved color effect. |
 
-Still To-Do on this might be to add a 15th cycle of the button that would hold the relay on (contact open) to allow me to turn off one or the other of the lights.  Some thought will need to go into identifying when a) power is on to the lights, but b) the cycle inturrupt is open when setting a new choice for the mode.  Granted I would do it easy for HA control only, but adding local control without adding more buttons is the reason for a 15th power cycle.
+Still To-Do on this might be to add a 15th cycle of the button that would hold the relay on (contact open) to allow me to turn off one or the other of the lights.  Some thought will need to go into identifying when a) power is on to the lights, but b) the cycle inturrupt is open when setting a new choice for the mode.  Granted I would be able to do it fairly easy for HA control only, but adding local control without adding more buttons is the reason for a 15th power cycle.
 
 ### The Qilipsu Junciton Box
-Plastic is not the best choice for this box with the high-voltage included, but it's something I can look to replace donw the road.  I would even love to find a way to better separate the high and low-voltage a bit better.
+Plastic is not the best choice for this box with the high-voltage included, but it's something I can look to replace donw the road.  I would even love to find a way to better separate the high and low-voltage too.
 
 ### Final Thoughts
-I am super happy with the results of this project.  The unit is extremely responsive, fully local not just in terms on leveraging Home Assistant, but also how ESPHome has let me put all of the functionality (except scheduling) on the device itself so I can run it standalone.  The Waveshare 8CH device does have an RTC, so I suppose I could work towards building in a scheduling feature, but again... that's just out of scope at this point.
+I am super happy with the results of this project.  The unit is extremely responsive, fully local not just in terms on leveraging Home Assistant, but also how ESPHome has allowed me put all of the functionality (except scheduling) on the device itself so I can run it standalone.  The Waveshare 8CH device does have an RTC, so I suppose I could work towards building in a scheduling feature, but again... that's just out of scope at this point.
 
 ## Wiring Diagram
 ![Wiring Diagram](https://github.com/jeparkspr/pool-control/blob/main/wiring-diagram.jpg)
