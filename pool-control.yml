@@ -1,0 +1,958 @@
+#----------------------------------------------------------------------------------
+# Pool Equipment Control                                               John E Parks
+# Originally built on ESPHome Builder 2025.3.7                         July 6, 2025
+#----------------------------------------------------------------------------------
+# EXIO0 ... OUTPUT .. CH1 .. NO .............. Spa Jets Power Relay 
+# EXIO1 ... OUTPUT .. CH2 .. NC ......... I .. Pool Lights #2 Light Interrupt
+# EXIO2 ... OUTPUT .. CH3 .. NC ......... I .. Pool Lights #1 Light Interrupt
+# EXIO3 ... OUTPUT .. CH4 .. NO .............. Pool Lights Power Relay
+# EXIO4 ... OUTPUT .. CH5 .. NC .............. Main Pump INP4 Relay (12v from MODBUS)
+# EXIO5 ... OUTPUT .. CH6 .. NC ......... I .. Main Pump INP3 Relay
+# EXIO6 ... OUTPUT .. CH7 .. NC ......... I .. Main Pump INP2 Relay
+# EXIO7 ... OUTPUT .. CH8 .. NC ......... I .. Main Pump INP1 Relay
+#
+# GPIO4 ... INPUT ... button_ch1 ............. Spa Jets Power Button
+# GPIO5 ... INPUT ... button_ch4 ............. Pool Lights Power Button
+# GPIO6 ... INPUT ... button_ch5 ............. Pool Light #2 Interrupt Button
+# GPIO7 ... INPUT ... button_ch5 ............. Pool Light #1 Interrupt Button
+# GPIO8 ... INPUT ... button_ch5 ............. Main Pump Power Button
+# GPIO9 ... INPUT ... button_increase_speed .. Main Pump Increase Speed Button
+# GPIO10 .. INPUT ... button_decrease_speed .. Main Pump Decrease Speed Button
+#----------------------------------------------------------------------------------
+# EXIO0 though EXIO7 are external IO relays accessed through the TCA9554PWR chip
+#   found on address 0x20 of the i2c bus.  The i2c bus is fixed to GPIOs 41(slc) &
+#   42(sda).
+#
+# GPIOs 4-11 correspond to digital inputs DI1 through DI8.  No resistor is needed
+#   for buttons attached to these inputs and each wires back to the Digital
+#   Ground (DGND) terminal.
+#
+# Other GPIOs go unused.  Reference the Waveshare ESP32-S3-ETH-8DI-8RO-C Wiki
+#   for more information on those GPIOs.
+#
+# Several switches, and hence their relays, are set to internal (hidden from Home
+#   Assistant) as they would only serve to confuse and should not be operated
+#   from HA.  These switches are used to provide onboard autonomy to carry out
+#   all functions even when HA is not available.  Their relays are noted above
+#   with an "I"
+#----------------------------------------------------------------------------------
+
+esphome:
+  name: picina
+  friendly_name: "Pool Control"
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: ESP32S3
+  framework:
+    type: esp-idf
+
+logger:
+
+api:
+  reboot_timeout: 0s # Do not reboot if no connection to API
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: "A Long Time Ago..."
+  password: "5188860A68"
+  ap:
+    ap_timeout: "0s"
+    #ssid: "Waveshare 8ch"
+    #password: "88888888"
+  manual_ip:
+    static_ip: 10.0.0.190
+    gateway: 10.0.0.1
+    subnet: 255.255.255.0
+    
+captive_portal:
+
+web_server:
+  port: 80
+  include_internal: True
+  version: 3
+
+#----------------------------------------------------------------------------------------------------
+# The Waveshare Wiki for the ESP32-S3-ETH-8DI-8RO-C shows the i2c connected on GPIO41 and GPIO42
+#----------------------------------------------------------------------------------------------------
+i2c:
+  scl: GPIO41
+  sda: GPIO42
+  scan: True
+  id: i2c_interface
+
+#----------------------------------------------------------------------------------------------------
+# This is actually accessing a TCA9554PWR module, but works just fine. 
+#----------------------------------------------------------------------------------------------------
+pca9554:
+  - id: 'exio'
+    address: 0x20
+    i2c_id: i2c_interface
+
+#----------------------------------------------------------------------------------------------------
+# Global variables
+#----------------------------------------------------------------------------------------------------
+globals:
+  - id: repeat_count_1
+    type: int
+    restore_value: no
+    initial_value: "0"
+  - id: repeat_count_2
+    type: int
+    restore_value: no
+    initial_value: "0"
+  - id: pump_speed_setting
+    type: int
+    restore_value: yes
+    initial_value: "8"
+  - id: pump_speed_rpm
+    type: int
+    restore_value: yes
+    initial_value: "0"
+  - id: pump_watts
+    type: int
+    restore_value: yes
+    initial_value: "0"
+  - id: click_count_1
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: click_timer_1
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: click_count_2
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: click_timer_2
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+#----------------------------------------------------------------------------------------------------
+# Interval - used for multi-click timing and counting
+#----------------------------------------------------------------------------------------------------
+interval:
+  - interval: 100ms
+    then:
+      - if:
+          condition:
+            lambda: 'return id(click_timer_1) > 0;'
+          then:
+            - if:
+                condition:
+                  switch.is_off: switch_ch4 # CH4 Pool Lights Power Switch
+                then:
+                  - switch.turn_on: switch_ch4
+                  - delay: 3s
+            - lambda: |-
+                id(click_timer_1) -= 1;
+                if (id(click_timer_1) == 0) {
+                  ESP_LOGI("DI3", "Click burst on DI3 ended with %d clicks", id(click_count_1));
+                  if (id(click_count_1) == 1) { id(light_1_mode).publish_state("SAm"); id(repeat_count_1) = 1; id(cycle_light_1).execute(); }
+                  else if (id(click_count_1) == 2) { id(light_1_mode).publish_state("Party"); id(repeat_count_1) = 2; id(cycle_light_1).execute(); }
+                  else if (id(click_count_1) == 3) { id(light_1_mode).publish_state("Romance"); id(repeat_count_1) = 3; id(cycle_light_1).execute(); }
+                  else if (id(click_count_1) == 4) { id(light_1_mode).publish_state("Caribbean"); id(repeat_count_1) = 4; id(cycle_light_1).execute(); }
+                  else if (id(click_count_1) == 5) { id(light_1_mode).publish_state("Red White & Blue"); id(repeat_count_1) = 5; id(cycle_light_1).execute(); }
+                  else if (id(click_count_1) == 6) { id(light_1_mode).publish_state("California Sunset"); id(repeat_count_1) = 6; id(cycle_light_1).execute(); }
+                  else if (id(click_count_1) == 7) { id(light_1_mode).publish_state("Royal"); id(repeat_count_1) = 7; id(cycle_light_1).execute(); }
+                  else if (id(click_count_1) == 8) { id(light_1_mode).publish_state("Blue"); id(repeat_count_1) = 8; id(cycle_light_1).execute(); }
+                  else if (id(click_count_1) == 9) { id(light_1_mode).publish_state("Green"); id(repeat_count_1) = 9; id(cycle_light_1).execute(); }
+                  else if (id(click_count_1) == 10) { id(light_1_mode).publish_state("Red"); id(repeat_count_1) = 10; id(cycle_light_1).execute(); }
+                  else if (id(click_count_1) == 11) { id(light_1_mode).publish_state("White"); id(repeat_count_1) = 11; id(cycle_light_1).execute(); }
+                  else if (id(click_count_1) == 12) { id(light_1_mode).publish_state("Magenta"); id(repeat_count_1) = 12; id(cycle_light_1).execute(); }
+                  else if (id(click_count_1) == 13) { id(light_1_mode).publish_state("Capture"); id(repeat_count_1) = 13; id(cycle_light_1).execute(); }
+                  else if (id(click_count_1) == 14) { id(light_1_mode).publish_state("Recall Last"); id(repeat_count_1) = 14; id(cycle_light_1).execute(); }
+                  id(click_count_1) = 0;
+                };
+      - if:
+          condition:
+            lambda: 'return id(click_timer_2) > 0;'
+          then:
+            - if:
+                condition:
+                  switch.is_off: switch_ch4 # CH4 Pool Lights Power Switch
+                then:
+                  - switch.turn_on: switch_ch4
+                  - delay: 3s
+            - lambda: |-
+                id(click_timer_2) -= 1;
+                if (id(click_timer_2) == 0) {
+                  ESP_LOGI("DI3", "Click burst on DI2 ended with %d clicks", id(click_count_2));
+                  if (id(click_count_2) == 1) { id(light_2_mode).publish_state("SAm"); id(repeat_count_2) = 1; id(cycle_light_2).execute(); }
+                  else if (id(click_count_2) == 2) { id(light_2_mode).publish_state("Party"); id(repeat_count_2) = 2; id(cycle_light_2).execute(); }
+                  else if (id(click_count_2) == 3) { id(light_2_mode).publish_state("Romance"); id(repeat_count_2) = 3; id(cycle_light_2).execute(); }
+                  else if (id(click_count_2) == 4) { id(light_2_mode).publish_state("Caribbean"); id(repeat_count_2) = 4; id(cycle_light_2).execute(); }
+                  else if (id(click_count_2) == 5) { id(light_2_mode).publish_state("Red White & Blue"); id(repeat_count_2) = 5; id(cycle_light_2).execute(); }
+                  else if (id(click_count_2) == 6) { id(light_2_mode).publish_state("California Sunset"); id(repeat_count_2) = 6; id(cycle_light_2).execute(); }
+                  else if (id(click_count_2) == 7) { id(light_2_mode).publish_state("Royal"); id(repeat_count_2) = 7; id(cycle_light_2).execute(); }
+                  else if (id(click_count_2) == 8) { id(light_2_mode).publish_state("Blue"); id(repeat_count_2) = 8; id(cycle_light_2).execute(); }
+                  else if (id(click_count_2) == 9) { id(light_2_mode).publish_state("Green"); id(repeat_count_2) = 9; id(cycle_light_2).execute(); }
+                  else if (id(click_count_2) == 10) { id(light_2_mode).publish_state("Red"); id(repeat_count_2) = 10; id(cycle_light_2).execute(); }
+                  else if (id(click_count_2) == 11) { id(light_2_mode).publish_state("White"); id(repeat_count_2) = 11; id(cycle_light_2).execute(); }
+                  else if (id(click_count_2) == 12) { id(light_2_mode).publish_state("Magenta"); id(repeat_count_2) = 12; id(cycle_light_2).execute(); }
+                  else if (id(click_count_2) == 13) { id(light_2_mode).publish_state("Capture"); id(repeat_count_2) = 13; id(cycle_light_2).execute(); }
+                  else if (id(click_count_2) == 14) { id(light_2_mode).publish_state("Recall Last"); id(repeat_count_2) = 14; id(cycle_light_2).execute(); }
+                  id(click_count_2) = 0;
+                };
+
+#----------------------------------------------------------------------------------------------------
+# Define outputs - LEDs and relays
+#----------------------------------------------------------------------------------------------------
+output:
+  # EXIO0 / OUTPUT / ch1 / INP1 - Bit 1 of 3
+  - platform: gpio
+    id: ch1
+    pin:
+      pca9554: exio
+      number: 0
+      mode:
+        output: True
+      inverted: False
+
+  # EXIO1 / OUTPUT / ch2 / INP2 - Bit 2 of 3
+  - platform: gpio
+    id: ch2
+    pin:
+      pca9554: exio
+      number: 1
+      mode:
+        output: True
+      inverted: False
+
+  # EXIO2 / OUTPUT / ch3 / INP3 - Bit 3 of 3
+  - platform: gpio
+    id: ch3
+    pin:
+      pca9554: exio
+      number: 2
+      mode:
+        output: True
+      inverted: False
+
+  # EXIO3 / OUTPUT / ch4 / INP4 - Main Pump On/Off
+  - platform: gpio
+    id: ch4
+    pin:
+      pca9554: exio
+      number: 3
+      mode:
+        output: True
+      inverted: False
+
+  # GPIO4 / OUTPUT / ch5 / Pump Power Relay (INP4 w/12v from MODBUS as NC)
+  - platform: gpio
+    id: ch5
+    pin:
+      pca9554: exio
+      number: 4
+      mode:
+        output: True
+      inverted: False
+
+  # GPIO5 / OUTPUT / ch5 / Pump INP1 Relay
+  - platform: gpio
+    id: ch6
+    pin:
+      pca9554: exio
+      number: 5
+      mode:
+        output: True
+      inverted: False
+
+  # GPIO6 / OUTPUT / ch7 / Pump INP2 Relay
+  - platform: gpio
+    id: ch7
+    pin:
+      pca9554: exio
+      number: 6
+      mode:
+        output: True
+      inverted: False
+
+  # GPIO7 / OUTPUT / ch8 / Pump INP3 Relay
+  - platform: gpio
+    id: ch8
+    pin:
+      pca9554: exio
+      number: 7
+      mode:
+        output: True
+      inverted: False
+
+#-------------------------------------------------------------------------------
+# Switches
+#-------------------------------------------------------------------------------
+switch:
+  # INP1 - Bit 1 of 3 for pump speed
+  - platform: output
+    id: switch_ch8
+    name: "CH8 INP1 Switch"
+    internal: True # hidden from Home Assistant
+    output: ch8
+
+  # INP2 - Bit 2 of 3 for pump speed 
+  - platform: output
+    id: switch_ch7
+    name: "CH7 INP2 Switch"
+    internal: True # hidden from Home Assistant
+    output: ch7
+
+  # INP3 - Bit 3 of 3 for pump speed
+  - platform: output
+    id: switch_ch6
+    name: "CH6 INP3 Switch"
+    internal: True # hidden from Home Assistant
+    output: ch6
+
+  # INP4 - Main Pump on/off switch
+  - platform: output
+    id: switch_ch5
+    name: "Main Pump" # CH5 INP4 - Main Pump Switch
+    output: ch5
+    on_turn_on: 
+      then:
+        - script.execute: set_pump_speed
+    on_turn_off:
+      then:
+        - script.execute: set_pump_speed
+
+  # Pool Lights on/off switch
+  - platform: output
+    id: switch_ch4
+    name: "Pool Lights" # CH4 Pool Lights Switch on/off
+    output: ch4
+
+  # Pool Light #2 Interrupt Switch
+  - platform: output
+    id: switch_ch3
+    name: "CH3 Pool Light #1 Interrupt Switch"
+    internal: True # hidden from Home Assistant
+    output: ch3
+
+  # Pool Light #2 Interrupt Switch
+  - platform: output
+    id: switch_ch2
+    name: "CH2 Pool Light #2 Interrupt Switch"
+    internal: True # hidden from Home Assistant
+    output: ch2
+
+  # Spa Jets Switch
+  - platform: output
+    id: switch_ch1
+    name: "Spa Jets" # CH1 Spa Jets Switch
+    output: ch1
+
+#-------------------------------------------------------------------------------
+# Buttons
+#-------------------------------------------------------------------------------
+binary_sensor:
+  # Pool Lights Power Button
+  - platform: gpio
+    id: button_ch1
+    name: "DI1 Spa Power Button"
+    pin: 
+      number: GPIO4
+      mode: INPUT_PULLUP
+      inverted: True 
+    on_press: 
+      - switch.toggle: switch_ch1
+
+  # Spa Jets Pump Power Button
+  - platform: gpio
+    id: button_ch4
+    name: "DI2 Lights Power Button"
+    pin: 
+      number: GPIO5
+      mode: INPUT_PULLUP
+      inverted: True 
+    on_press: 
+      - switch.toggle: switch_ch4
+
+  # Pool Light Interrupt Button #1
+  - platform: gpio
+    id: "di3"
+    name: "DI3 Light #1 Interrupt"
+    pin: 
+      number: GPIO6
+      mode: INPUT_PULLUP
+      inverted: True
+    on_press:
+      then:
+        - lambda: |-
+            id(click_count_1) += 1;
+            id(click_timer_1) = 10;  // 10 × 100ms = 1 second pause detection;
+    filters:
+      - delayed_off: 10ms
+
+    # Pool Light Interrupt Button #2
+  - platform: gpio
+    id: "di4"
+    name: "DI4 Light #2 Interrupt"
+    pin: 
+      number: GPIO7
+      mode: INPUT_PULLUP
+      inverted: True
+    on_press:
+      then:
+        - lambda: |-
+            id(click_count_2) += 1;
+            id(click_timer_2) = 10;  // 10 × 100ms = 1 second pause detection;
+    filters:
+      - delayed_off: 10ms
+
+    # Main Pump Power Button
+  - platform: gpio
+    id: button_ch5
+    name: "DI5 Main Pump Power Button"
+    pin: 
+      number: GPIO8
+      mode: INPUT_PULLUP
+      inverted: True 
+    on_press: 
+      - switch.toggle: switch_ch5
+
+    # Increase Speed
+  - platform: gpio
+    id: button_increase_speed
+    name: "DI6 Main Pump Increase Speed"
+    pin: 
+      number: GPIO9
+      mode: INPUT_PULLUP
+      inverted: True 
+    on_press: 
+      - script.execute: change_speed_up
+
+    # Decrease Speed
+  - platform: gpio
+    id: button_decrease_speed
+    name: "DI7 Main Pump Decrease Speed"
+    pin: 
+      number: GPIO10
+      mode: INPUT_PULLUP
+      inverted: True 
+    on_press: 
+      - script.execute: change_speed_down
+
+#-------------------------------------------------------------------------------
+# Sensors
+#-------------------------------------------------------------------------------
+sensor:
+    # Main pump speed in RPM (virtual)
+  - platform: template
+    name: "Main Pump Speed (RPM)"
+    id: pump_speed_rpm_sensor
+    update_interval: never
+    accuracy_decimals: 0
+    filters:
+      - clamp:
+          min_value: 0
+          max_value: 3450
+          ignore_out_of_range: False    
+    lambda: |-
+      return id(pump_speed_rpm);
+    # Main pump speed in RPM (virtual)
+  - platform: template
+    name: "Main Pump Load (Watts)"
+    id: pump_watts_sensor
+    device_class: power
+    state_class: measurement
+    unit_of_measurement: W
+    update_interval: never
+    accuracy_decimals: 0
+    filters:
+      - clamp:
+          min_value: 0
+          max_value: 1500
+          ignore_out_of_range: False    
+    lambda: |-
+      return id(pump_watts);
+  - platform: integration
+    name: "Pool Pump Total Energy"
+    sensor: pump_watts_sensor
+    time_unit: h
+    unit_of_measurement: kWh
+    state_class: total_increasing
+    device_class: energy
+    accuracy_decimals: 3
+
+#-------------------------------------------------------------------------------
+# Select Components
+#-------------------------------------------------------------------------------
+select:
+  # Select component for ch2
+  - platform: template
+    id: light_1_mode
+    name: "Pool Light #1 Mode"
+    restore_value: True
+    options:
+      - "SAm"
+      - "Party"
+      - "Romance"
+      - "Caribbean"
+      - "Red White & Blue"
+      - "California Sunset"
+      - "Royal"
+      - "Blue"
+      - "Green"
+      - "Red"
+      - "White"
+      - "Magenta"
+      - "Capture"
+      - "Recall Last"  
+    set_action:
+      - logger.log: 
+          level: INFO
+          tag: "light_1_mode"
+          format: "Mode chosen for Light 1: [%s]"
+          args: [ "x.c_str()" ]   
+      - lambda: |-
+          int repeat_count = 0;
+          if (x == "SAm") { repeat_count = 1; id(light_1_mode).publish_state("SAm");}
+          else if (x == "Party") { repeat_count = 2; id(light_1_mode).publish_state("Party");}
+          else if (x == "Romance") { repeat_count = 3; id(light_1_mode).publish_state("Romance");}
+          else if (x == "Caribbean") { repeat_count = 4; id(light_1_mode).publish_state("Caribbean");}
+          else if (x == "Red White & Blue") { repeat_count = 5; id(light_1_mode).publish_state("Red White & Blue");}
+          else if (x == "California Sunset") { repeat_count = 6; id(light_1_mode).publish_state("California Sunset");}
+          else if (x == "Royal") { repeat_count = 7; id(light_1_mode).publish_state("Royal");}
+          else if (x == "Blue") { repeat_count = 8; id(light_1_mode).publish_state("Blue");}
+          else if (x == "Green") { repeat_count = 9; id(light_1_mode).publish_state("Green");}
+          else if (x == "Red") { repeat_count = 10; id(light_1_mode).publish_state("Red");}
+          else if (x == "White") { repeat_count = 11; id(light_1_mode).publish_state("White");}
+          else if (x == "Magenta") { repeat_count = 12; id(light_1_mode).publish_state("Megenta");}
+          else if (x == "Capture") { repeat_count = 13; id(light_1_mode).publish_state("Capture");}
+          else if (x == "Recall Last") { repeat_count = 14; id(light_1_mode).publish_state("Recall Last");}
+          else { repeat_count = 14; }
+          // Store repeat_count for external use
+          id(repeat_count_1) = repeat_count;
+      - if: # this condition should only ever happen under testing from the web server component.
+          condition:
+            switch.is_on: switch_ch3 # CH3 Pool Light #1 Interrupt
+          then:
+            - switch.turn_off: switch_ch3
+      - if:
+          condition:
+            switch.is_off: switch_ch4
+          then:
+            - switch.turn_on: switch_ch4
+            - delay: 3s
+      - script.execute: cycle_light_1
+
+  # Select component for ch3
+  - platform: template
+    id: light_2_mode
+    name: "Pool Light #2 Mode"
+    restore_value: True
+    options:
+      - "SAm"
+      - "Party"
+      - "Romance"
+      - "Caribbean"
+      - "Red White & Blue"
+      - "California Sunset"
+      - "Royal"
+      - "Blue"
+      - "Green"
+      - "Red"
+      - "White"
+      - "Magenta"
+      - "Capture"
+      - "Recall Last"  
+    set_action:
+      - logger.log: 
+          level: INFO
+          tag: "light_2_mode"
+          format: "Mode [%s] was chosen for ch3_mod"
+          args: [ "x.c_str()" ]   
+      - lambda: |-
+          int repeat_count = 0;
+          if (x == "SAm") { repeat_count = 1; id(light_2_mode).publish_state("SAm");}
+          else if (x == "Party") { repeat_count = 2; id(light_2_mode).publish_state("Party");}
+          else if (x == "Romance") { repeat_count = 3; id(light_2_mode).publish_state("Romance");}
+          else if (x == "Caribbean") { repeat_count = 4; id(light_2_mode).publish_state("Caribbean");}
+          else if (x == "Red White & Blue") { repeat_count = 5; id(light_2_mode).publish_state("Red White & Blue");}
+          else if (x == "California Sunset") { repeat_count = 6; id(light_2_mode).publish_state("California Sunset");}
+          else if (x == "Royal") { repeat_count = 7; id(light_2_mode).publish_state("Royal");}
+          else if (x == "Blue") { repeat_count = 8; id(light_2_mode).publish_state("Blue");}
+          else if (x == "Green") { repeat_count = 9; id(light_2_mode).publish_state("Green");}
+          else if (x == "Red") { repeat_count = 10; id(light_2_mode).publish_state("Red");}
+          else if (x == "White") { repeat_count = 11; id(light_2_mode).publish_state("White");}
+          else if (x == "Magenta") { repeat_count = 12; id(light_2_mode).publish_state("Megenta");}
+          else if (x == "Capture") { repeat_count = 13; id(light_2_mode).publish_state("Capture");}
+          else if (x == "Recall Last") { repeat_count = 14; id(light_2_mode).publish_state("Recall Last");}
+          else { repeat_count = 14; }
+          id(repeat_count_2) = repeat_count;
+      - if: # this condition should only ever happen under testing from the web server component.
+          condition:
+            switch.is_on: switch_ch2 # CH3 Pool Light #1 Interrupt
+          then:
+            - switch.turn_off: switch_ch2
+      - if:
+          condition:
+            switch.is_off: switch_ch4
+          then:
+            - switch.turn_on: switch_ch4
+            - delay: 3s
+      - script.execute: cycle_light_2
+
+#-------------------------------------------------------------------------------
+# Slider for Main Pump Speed Setting (1-8)
+#-------------------------------------------------------------------------------
+number:
+  - platform: template
+    id: pump_speed_slider
+    name: "Main Pump Speed"
+    min_value: 1
+    max_value: 8
+    step: 1
+    optimistic: True
+    restore_value: True
+    initial_value: 8
+    mode: SLIDER
+    set_action:
+      - delay: 100ms
+      - logger.log:
+          level: INFO
+          format: "Pump Speed dial set to %d"
+          args: [ "(int)id(pump_speed_slider).state" ]
+      - lambda: |-
+          id(pump_speed_setting) = x;
+      - script.execute: set_pump_speed
+
+#-------------------------------------------------------------------------------
+# Scripts
+#-------------------------------------------------------------------------------
+script:
+    # Cycle Light #1 (CH2 relay)
+  - id: cycle_light_1
+    then:
+      - while:
+          condition:
+            lambda: |-
+              return id(repeat_count_1) > 0;
+          then:
+            - switch.turn_on: switch_ch3 # CH3
+            - delay: 500ms
+            - switch.turn_off: switch_ch3 # CH3
+            - delay: 500ms
+            - lambda: |-
+                id(repeat_count_1) -= 1;
+
+  # Cycle Light #2 (CH3 relay)
+  - id: cycle_light_2
+    then:
+      - while:
+          condition:
+            lambda: |-
+              return id(repeat_count_2) > 0;
+          then:
+            - switch.turn_on: switch_ch2 # CH2
+            - delay: 500ms
+            - switch.turn_off: switch_ch2 # CH2
+            - delay: 500ms
+            - lambda: |-
+                id(repeat_count_2) -= 1;
+
+  # Main Pump Increase Speed
+  - id: change_speed_up
+    mode: queued
+    then:
+      - if:
+          condition:
+            lambda: |-
+              return id(pump_speed_setting) < 8 && id(switch_ch5).state;
+          then:
+            - lambda: |-
+                id(pump_speed_setting)++;
+                id(pump_speed_slider).publish_state(id(pump_speed_setting)); ;
+            - delay: 100ms
+            - script.execute: set_pump_speed
+
+  # Main Pump Decrease Speed
+  - id: change_speed_down
+    mode: queued
+    then:
+      - if:
+          condition:
+            lambda: |-
+              return id(pump_speed_setting) > 1 && id(switch_ch5).state;
+          then:
+            - lambda: |-
+                id(pump_speed_setting)--;
+                id(pump_speed_slider).publish_state(id(pump_speed_setting)); ;
+            - delay: 100ms
+            - script.execute: set_pump_speed
+
+    # Pump speed from Hayward TriStar Pump manual. Timers (T1-T8) are each configured for a 
+    #   specific speed.  INP1-4 tie to the MODBUS 12v with INP4 being Normally Closed (NC)
+    #   to turn the pump off.  Because the pump will be normally run at the fastest speed
+    #   configured in the timers, the timers are hence configred with the fastest speed being
+    #   on timer 1 (T1) which has all three relays off (resting) in hopes of extending the
+    #   life of the relays.  Below is a table of the 3bit binary/8 options for the timers and 
+    #   their programmed speeds (personal choice).
+    #
+    #      +--------+------+------+------+------+------+------+------+------+
+    #      | Input  |  T1  |  T2  |  T3  |  T4  |  T5  |  T6  |  T7  |  T8  |
+    #      +--------+------+------+------+------+------+------+------+------+
+    #      | INP1   |  OFF |  ON  |  OFF |  ON  |  OFF |  ON  |  OFF |  ON  |
+    #      | INP2   |  OFF |  OFF |  ON  |  ON  |  OFF |  OFF |  ON  |  ON  |
+    #      | INP3   |  OFF |  OFF |  OFF |  OFF |  ON  |  ON  |  ON  |  ON  |
+    #      +--------+------+------+------+------+------+------+------+------+
+    #      | RPM    | 3400 | 3200 | 3000 | 2800 | 2600 | 2400 | 2200 | 2000 |
+    #      +--------+------+------+------+------+------+------+------+------+
+    #
+    # Main Pump Speed
+  - id: set_pump_speed
+    then:
+      - if:
+          condition:
+            lambda: "return id(switch_ch5).state;"
+          then:
+            - if:
+                condition:
+                  lambda: "return id(pump_speed_setting) == 1;"
+                then:
+                  - logger.log: "Pump dial set to 1, trigger Timer 8 (ON/ON/ON), Speed 2000 RPM"
+                  - lambda: |-
+                      id(pump_speed_rpm) = 2000;
+                      id(pump_watts) = 260;
+                  - sensor.template.publish:
+                      id: pump_speed_rpm_sensor
+                      state: !lambda |-
+                        if (id(switch_ch5).state) {
+                          return id(pump_speed_rpm);
+                        } else {
+                          return 0;
+                        }  
+                  - sensor.template.publish:
+                      id: pump_watts_sensor
+                      state: !lambda |-
+                        if (id(switch_ch5).state) {
+                          return id(pump_watts);
+                        } else {
+                          return 0;
+                        }  
+                  - switch.turn_on: switch_ch6
+                  - switch.turn_on: switch_ch7
+                  - switch.turn_on: switch_ch8
+            - if:
+                condition:
+                  lambda: "return id(pump_speed_setting) == 2;"
+                then:
+                  - logger.log: "Pump dial set to 2, trigger Timer 7 (OFF/ON/ON), Speed 2200 RPM"
+                  - lambda: |-
+                      id(pump_speed_rpm) = 2200;
+                      id(pump_watts) = 335;
+                  - sensor.template.publish:
+                      id: pump_speed_rpm_sensor
+                      state: !lambda |-
+                        if (id(switch_ch5).state) {
+                          return id(pump_speed_rpm);
+                        } else {
+                          return 0;
+                        }  
+                  - sensor.template.publish:
+                      id: pump_watts_sensor
+                      state: !lambda |-
+                        if (id(switch_ch5).state) {
+                          return id(pump_watts);
+                        } else {
+                          return 0;
+                        }  
+                  - switch.turn_on: switch_ch6
+                  - switch.turn_on: switch_ch7
+                  - switch.turn_off: switch_ch8
+            - if:
+                condition:
+                  lambda: "return id(pump_speed_setting) == 3;"
+                then:
+                  - logger.log: "Pump dial set to 3, trigger Timer 6 (ON/OFF/ON), Speed 2400 RPM"
+                  - lambda: |-
+                      id(pump_speed_rpm) = 2400;
+                      id(pump_watts) = 430;
+                  - sensor.template.publish:
+                      id: pump_speed_rpm_sensor
+                      state: !lambda |-
+                        if (id(switch_ch5).state) {
+                          return id(pump_speed_rpm);
+                        } else {
+                          return 0;
+                        }  
+                  - sensor.template.publish:
+                      id: pump_watts_sensor
+                      state: !lambda |-
+                        if (id(switch_ch5).state) {
+                          return id(pump_watts);
+                        } else {
+                          return 0;
+                        }  
+                  - switch.turn_on: switch_ch6
+                  - switch.turn_off: switch_ch7
+                  - switch.turn_on: switch_ch8
+            - if:
+                condition:
+                  lambda: "return id(pump_speed_setting) == 4;"
+                then:
+                  - logger.log: "Pump dial set to 4, trigger Timer 5 (OFF/OFF/ON), Speed 2600 RPM"
+                  - lambda: |-
+                      id(pump_speed_rpm) = 2600;
+                      id(pump_watts) = 540;
+                  - sensor.template.publish:
+                      id: pump_speed_rpm_sensor
+                      state: !lambda |-
+                        if (id(switch_ch5).state) {
+                          return id(pump_speed_rpm);
+                        } else {
+                          return 0;
+                        }  
+                  - sensor.template.publish:
+                      id: pump_watts_sensor
+                      state: !lambda |-
+                        if (id(switch_ch5).state) {
+                          return id(pump_watts);
+                        } else {
+                          return 0;
+                        }  
+                  - switch.turn_on: switch_ch6
+                  - switch.turn_off: switch_ch7
+                  - switch.turn_off: switch_ch8
+            - if:
+                condition:
+                  lambda: "return id(pump_speed_setting) == 5;"
+                then:
+                  - logger.log: "Pump dial set to 5, trigger Timer 4 (ON/ON/OFF), Speed 2800 RPM"
+                  - lambda: |-
+                      id(pump_speed_rpm) = 2800;
+                      id(pump_watts) = 680;
+                  - sensor.template.publish:
+                      id: pump_speed_rpm_sensor
+                      state: !lambda |-
+                        if (id(switch_ch5).state) {
+                          return id(pump_speed_rpm);
+                        } else {
+                          return 0;
+                        }  
+                  - sensor.template.publish:
+                      id: pump_watts_sensor
+                      state: !lambda |-
+                        if (id(switch_ch5).state) {
+                          return id(pump_watts);
+                        } else {
+                          return 0;
+                        }  
+                  - switch.turn_off: switch_ch6
+                  - switch.turn_on: switch_ch7
+                  - switch.turn_on: switch_ch8
+            - if:
+                condition:
+                  lambda: "return id(pump_speed_setting) == 6;"
+                then:
+                  - logger.log: "Pump dial set to 6, trigger Timer 3 (OFF/ON/OFF), Speed 3000 RPM"
+                  - lambda: |-
+                      id(pump_speed_rpm) = 3000;
+                      id(pump_watts) = 850;
+                  - sensor.template.publish:
+                      id: pump_speed_rpm_sensor
+                      state: !lambda |-
+                        if (id(switch_ch5).state) {
+                          return id(pump_speed_rpm);
+                        } else {
+                          return 0;
+                        }  
+                  - sensor.template.publish:
+                      id: pump_watts_sensor
+                      state: !lambda |-
+                        if (id(switch_ch5).state) {
+                          return id(pump_watts);
+                        } else {
+                          return 0;
+                        }  
+                  - switch.turn_off: switch_ch6
+                  - switch.turn_on: switch_ch7
+                  - switch.turn_off: switch_ch8
+            - if:
+                condition:
+                  lambda: "return id(pump_speed_setting) == 7;"
+                then:
+                  - logger.log: "Pump dial set to 7, trigger Timer 2 (ON/OFF/OFF), Speed 3200 RPM"
+                  - lambda: |-
+                      id(pump_speed_rpm) = 3200;
+                      id(pump_watts) = 1050;
+                  - sensor.template.publish:
+                      id: pump_speed_rpm_sensor
+                      state: !lambda |-
+                        if (id(switch_ch5).state) {
+                          return id(pump_speed_rpm);
+                        } else {
+                          return 0;
+                        }  
+                  - sensor.template.publish:
+                      id: pump_watts_sensor
+                      state: !lambda |-
+                        if (id(switch_ch5).state) {
+                          return id(pump_watts);
+                        } else {
+                          return 0;
+                        }  
+                  - switch.turn_off: switch_ch6
+                  - switch.turn_off: switch_ch7
+                  - switch.turn_on: switch_ch8
+            - if:
+                condition:
+                  lambda: "return id(pump_speed_setting) == 8;"
+                then:
+                  - logger.log: "Pump dial set to 8, trigger Timer 1 (OFF/OFF/OFF), Speed 3400 RPM"
+                  - lambda: |-
+                      id(pump_speed_rpm) = 3400;
+                      id(pump_watts) = 1250;
+                  - sensor.template.publish:
+                      id: pump_speed_rpm_sensor
+                      state: !lambda |-
+                        if (id(switch_ch5).state) {
+                          return id(pump_speed_rpm);
+                        } else {
+                          return 0;
+                        }  
+                  - sensor.template.publish:
+                      id: pump_watts_sensor
+                      state: !lambda |-
+                        if (id(switch_ch5).state) {
+                          return id(pump_watts);
+                        } else {
+                          return 0;
+                        }  
+                  - switch.turn_off: switch_ch6
+                  - switch.turn_off: switch_ch7
+                  - switch.turn_off: switch_ch8
+      - if:
+          condition:
+            lambda: "return !id(switch_ch5).state;"
+          then:
+            - logger.log: "Pump is off, speed is 0"
+            - lambda: |-
+                id(pump_speed_rpm) = 0;
+                id(pump_watts) = 0;
+            - sensor.template.publish:
+                id: pump_speed_rpm_sensor
+                state: !lambda |-
+                  if (id(switch_ch5).state) {
+                    return id(pump_speed_rpm);
+                  } else {
+                    return 0;
+                  }
+            - sensor.template.publish:
+                id: pump_watts_sensor
+                state: !lambda |-
+                  if (id(switch_ch5).state) {
+                    return id(pump_watts);
+                  } else {
+                    return 0;
+                  }  
+            # Here we set the relays to be our default speed setting (Timer 1) where
+            # all relays are off to leave them in a resting state.
+            - switch.turn_off: switch_ch6
+            - switch.turn_off: switch_ch7
+            - switch.turn_off: switch_ch8
