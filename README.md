@@ -28,6 +28,12 @@ The final product was developed with:
 - ESPHome 2025.6.3
 - Home Assistant (HA) 2025.7.1.
 
+## Notes
+### Hayward TriStar Variable Speed Pump
+For do-it-yourself'ers, Hayward does not seem willing to share information about their implementation of MODBUS.  Some people have tried to sniff MODBUS traffic for these pumps \(i.e. [Desert Homes](http://www.desert-home.com/2014/07/controlling-hayward-ecostar-pump.html)\) and have figured out a bunch, but that's not a project I'm willing to take on at the moment. Consequently, I'm leveraging the Remote Relay Control which simply put, uses 3 on/off \(binary\) inputs to create 8 possible selections for a speed \(INP1, INP2, INP3\).  The 8 speeds come from programming each of the 8 timers in the pump.  INP4 is used to turn the pump off/on... but note that it is reversed so you'll want to make sure to use the normally closed \(NC\) side of the relay for that one so the pump is off when the Waveshare device is without power.
+
+Since I want to run most often at the highest speed configured \(I really only run my filter pump for 1 hour a day\) and I would want that to happen when the relays for INP1,2,3 are resting rather then holding them on for an hour each day, I reversed the order of the speeds with Timer-1 being the fastest speed and Timer-8 being the slowest.  Side-note, it makse no differenct if the timer is enabled or disabled when the unit is in Remote Relay Mode... either way, the timers will not run on their own and you will need to handle that via Home Assistant.
+
 ## Wiring Diagram
 ![Wiring Diagram](https://github.com/jeparkspr/pool-control/blob/main/wiring-diagram.jpg)
 
